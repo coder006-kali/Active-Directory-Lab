@@ -1,0 +1,764 @@
+================================================================================
+                    ACTIVE DIRECTORY LAB - COMPLETE DOCUMENTATION
+                              Active Directory Lab Setup
+                              15 July 2026
+================================================================================
+
+PROJECT OVERVIEW:
+================
+
+Goal: Build a functional Active Directory lab for penetration testing and 
+      ethical hacking practice (eJPT → CRTO → CRTE preparation)
+
+Status: ✅ COMPLETE - All core functionalities working!
+
+================================================================================
+PART 1: LAB SETUP & INFRASTRUCTURE
+================================================================================
+
+ENVIRONMENT DETAILS:
+-------------------
+Host Machine: Laptop/Desktop (Windows/Linux)
+Hypervisor: Oracle VirtualBox 7.x
+Network Type: Bridged Adapter (changed from NAT for connectivity)
+
+VIRTUAL MACHINES:
+-----------------
+
+1. DC01 (Domain Controller)
+   - OS: Windows Server 2022 Standard Evaluation
+   - IP Address: 192.168.56.101 (Bridged Adapter)
+   - Domain: akshay.local
+   - Role: Active Directory Domain Controller
+   - Services: NTDS (Active Directory Domain Services), DNS
+   - Administrator Password: [STORE SECURELY - NOT IN GIT]
+
+2. Kali Linux (Attacker Machine)
+   - OS: Kali Linux (Latest)
+   - IP Address: 192.168.56.102 (Bridged Adapter)
+   - Purpose: Enumeration, LDAP queries, testing
+   - Username: kali
+
+================================================================================
+PART 2: ACTIVE DIRECTORY STRUCTURE
+================================================================================
+
+DOMAIN HIERARCHY:
+-----------------
+akshay.local (root domain)
+├── Organizational Units (OUs)
+│   ├── IT
+│   ├── Sales
+│   └── Managers
+├── Users (4 total)
+├── Groups (2 custom + built-in)
+└── Computers
+
+USERS CREATED:
+--------------
+
+1. Rahul Sharma
+   - SamAccountName: rahul.sharma
+   - UPN: rahul.sharma@akshay.local
+   - Organization Unit: IT
+   - Password: [STORE SECURELY - NOT IN GIT]
+   - Group Membership: IT-Team
+   - Status: Active
+
+2. Priya Verma
+   - SamAccountName: priya.verma
+   - UPN: priya.verma@akshay.local
+   - Organization Unit: Sales
+   - Password: [STORE SECURELY - NOT IN GIT]
+   - Group Membership: Sales-Team
+   - Status: Active
+
+3. Administrator
+   - SamAccountName: Administrator
+   - Role: Domain Admin
+   - Password: [STORE SECURELY - NOT IN GIT]
+   - Status: Active
+
+4. krbtgt (Kerberos)
+   - Auto-generated system account
+   - Used for Kerberos authentication
+
+SECURITY GROUPS CREATED:
+------------------------
+
+1. IT-Team
+   - Type: Global Security Group
+   - Members: Rahul Sharma
+   - Purpose: IT department access control
+
+2. Sales-Team
+   - Type: Global Security Group
+   - Members: Priya Verma
+   - Purpose: Sales department access control
+
+BUILT-IN GROUPS:
+----------------
+- Administrators
+- Users
+- Guests
+- Domain Admins
+- Domain Users
+- Print Operators
+- Backup Operators
+- Remote Desktop Users
+- And 20+ other system groups
+
+================================================================================
+PART 3: SETUP COMMANDS & EXPLANATIONS
+================================================================================
+
+STEP 1: INSTALL AD DS ROLE
+--------------------------
+Command:
+  Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+
+Explanation:
+  - Installs Active Directory Domain Services feature on Windows Server
+  - Includes AD admin tools (ADUC, etc.)
+  - Must be done before promoting server to Domain Controller
+  - Takes 5-10 minutes
+
+What it does:
+  ✅ Adds AD services binary files
+  ✅ Installs management tools
+  ✅ Prepares server for promotion
+
+
+STEP 2: PROMOTE TO DOMAIN CONTROLLER
+-------------------------------------
+Command:
+  Install-ADDSForest -DomainName "akshay.local" `
+    -SafeModeAdministratorPassword (ConvertTo-SecureString -AsPlainText "YourStrongPassword" -Force) `
+    -Force
+
+Explanation:
+  - Promotes server from standalone to Domain Controller
+  - Creates new forest "akshay.local"
+  - Sets Safe Mode admin password (for recovery)
+  - -Force bypasses confirmations
+  - Server automatically restarts after completion
+  - Takes 2-5 minutes
+
+What it does:
+  ✅ Creates AD forest
+  ✅ Creates domain akshay.local
+  ✅ Sets up DNS service
+  ✅ Creates default OUs
+  ✅ Initializes Kerberos
+
+
+STEP 3: CREATE ORGANIZATIONAL UNITS (OUs)
+------------------------------------------
+Commands:
+  New-ADOrganizationalUnit -Name "IT" -Path "DC=akshay,DC=local"
+  New-ADOrganizationalUnit -Name "Sales" -Path "DC=akshay,DC=local"
+  New-ADOrganizationalUnit -Name "Managers" -Path "DC=akshay,DC=local"
+
+Explanation:
+  - Creates folder-like containers for organizing users
+  - Helps apply Group Policies to specific departments
+  - Path syntax: DC=domain, DC=component (Distinguished Name format)
+
+What they do:
+  ✅ Organize users by department
+  ✅ Enable targeted Group Policy application
+  ✅ Make AD more manageable
+
+
+STEP 4: CREATE USERS
+--------------------
+Command Example (Rahul):
+  New-ADUser -Name "Rahul Sharma" `
+    -SamAccountName "rahul.sharma" `
+    -UserPrincipalName "rahul.sharma@akshay.local" `
+    -Path "OU=IT,DC=akshay,DC=local" `
+    -AccountPassword (ConvertTo-SecureString -AsPlainText "YourStrongPassword" -Force) `
+    -Enabled $true
+
+Explanation of parameters:
+  - -Name: Full name for display
+  - -SamAccountName: Short username for domain logon
+  - -UserPrincipalName: Email-style login identifier
+  - -Path: Which OU to create user in
+  - -AccountPassword: Initial password (must be strong)
+  - -Enabled: Whether account is active
+
+What it does:
+  ✅ Creates user account in AD
+  ✅ Assigns to specific OU
+  ✅ Sets password
+  ✅ Enables login capability
+
+
+STEP 5: CREATE SECURITY GROUPS
+-------------------------------
+Command Example (IT-Team):
+  New-ADGroup -Name "IT-Team" `
+    -SamAccountName "IT-Team" `
+    -GroupCategory Security `
+    -GroupScope Global `
+    -Path "CN=Users,DC=akshay,DC=local"
+
+Explanation:
+  - GroupCategory Security: For access control (not distribution)
+  - GroupScope Global: Can include users from same forest
+
+What it does:
+  ✅ Creates security group
+  ✅ Can assign permissions to resources
+  ✅ Organizational hierarchy
+
+
+STEP 6: ADD USERS TO GROUPS
+---------------------------
+Commands:
+  Add-ADGroupMember -Identity "IT-Team" -Members "rahul.sharma"
+  Add-ADGroupMember -Identity "Sales-Team" -Members "priya.verma"
+
+Explanation:
+  - Adds users to groups for permission management
+  - Users inherit group permissions
+  - Groups can have multiple members
+
+What it does:
+  ✅ User becomes group member
+  ✅ Can access group-restricted resources
+  ✅ Simplifies permission management
+
+
+STEP 7: ENABLE ANONYMOUS LDAP QUERIES (Optional)
+-------------------------------------------------
+Command:
+  reg add "HKLM\SYSTEM\CurrentControlSet\Services\LDAP" `
+    /v dsHeuristics /t REG_SZ /d 0000002 /f
+
+Explanation:
+  - Allows LDAP queries without authentication
+  - Useful for pentesting/enumeration
+  - In production, should be disabled for security
+
+What it does:
+  ✅ Allows Kali to query AD anonymously
+  ✅ Enables reconnaissance
+  ✅ Simulates misconfiguration
+
+
+STEP 8: DISABLE FIREWALL (Lab Only!)
+-------------------------------------
+Command:
+  netsh advfirewall set allprofiles state off
+
+Explanation:
+  - Disables Windows Firewall temporarily
+  - Only for lab testing (NEVER in production!)
+  - Allows all network traffic
+
+What it does:
+  ✅ LDAP port 389 accessible
+  ✅ DNS queries work
+  ✅ Network communication unrestricted
+
+================================================================================
+PART 4: ENUMERATION COMMANDS
+================================================================================
+
+COMMAND 1: LIST ALL USERS
+-------------------------
+Command:
+  Get-ADUser -Filter * -Properties Name, SamAccountName, UserPrincipalName | 
+    Select-Object Name, SamAccountName, UserPrincipalName
+
+Output:
+  Name         SamAccountName UserPrincipalName
+  Rahul Sharma rahul.sharma   rahul.sharma@akshay.local
+  Priya Verma  priya.verma    priya.verma@akshay.local
+
+
+COMMAND 2: LIST ALL GROUPS
+--------------------------
+Command:
+  Get-ADGroup -Filter * | Select-Object Name, GroupScope, GroupCategory
+
+Output:
+  Name       GroupScope GroupCategory
+  IT-Team    Global     Security
+  Sales-Team Global     Security
+
+
+COMMAND 3: CHECK GROUP MEMBERSHIP
+----------------------------------
+Command:
+  Get-ADGroupMember -Identity "IT-Team" | Select-Object Name, SamAccountName
+
+Output:
+  Name         SamAccountName
+  Rahul Sharma rahul.sharma
+
+
+COMMAND 4: GET USER DETAILS
+---------------------------
+Command:
+  Get-ADUser -Identity "rahul.sharma" -Properties *
+
+Output shows:
+  ✓ User account details
+  ✓ Group memberships
+  ✓ Account status
+  ✓ Account expiration
+  ✓ Last login time
+
+
+COMMAND 5: GET DOMAIN INFO
+--------------------------
+Command:
+  Get-ADDomain
+
+Output shows:
+  ✓ Domain name: akshay.local
+  ✓ Forest name
+  ✓ Domain controllers
+  ✓ Domain functional level
+  ✓ Organizational units
+
+
+COMMAND 6: LIST OUS
+------------------
+Command:
+  Get-ADOrganizationalUnit -Filter * | Select-Object Name, DistinguishedName
+
+Output:
+  Name     DistinguishedName
+  IT       OU=IT,DC=akshay,DC=local
+  Sales    OU=Sales,DC=akshay,DC=local
+  Managers OU=Managers,DC=akshay,DC=local
+
+================================================================================
+PART 5: KALI LINUX LDAP ENUMERATION
+================================================================================
+
+COMMAND 1: LDAP SEARCH - GET ALL USERS
+--------------------------------------
+Command:
+  ldapsearch -x -h 192.168.56.101 -D "" -w "" -b "DC=akshay,DC=local" 
+             "(&(objectClass=user)(objectCategory=person))"
+
+Output:
+  Returns all user objects with their attributes
+
+
+COMMAND 2: LDAP SEARCH - GET ADMIN USERS
+----------------------------------------
+Command:
+  ldapsearch -x -h 192.168.56.101 -D "" -w "" -b "DC=akshay,DC=local"
+             "(&(objectClass=user)(memberOf=CN=Administrators*))"
+
+Output:
+  Returns users in Administrators group
+
+
+COMMAND 3: ENUMERATE DOMAIN GROUPS
+---------------------------------
+Command:
+  ldapsearch -x -h 192.168.56.101 -D "" -w "" -b "DC=akshay,DC=local" 
+             "(objectClass=group)"
+
+Output:
+  All groups in the domain
+
+
+COMMAND 4: NSLOOKUP - VERIFY DNS
+--------------------------------
+Command:
+  nslookup akshay.local 192.168.56.101
+
+Output:
+  Server: 192.168.56.101
+  Address: 192.168.56.101#53
+  Name: akshay.local
+
+
+COMMAND 5: DIG - EXTENDED DNS QUERY
+-----------------------------------
+Command:
+  dig akshay.local @192.168.56.101
+
+Output:
+  DNS response showing domain records
+
+
+COMMAND 6: ENUM4LINUX (Optional)
+-------------------------------
+Command:
+  enum4linux -u "" -p "" 192.168.56.101
+
+Output:
+  Automated enumeration of:
+  ✓ Domain info
+  ✓ Users
+  ✓ Groups
+  ✓ Shares
+  ✓ Policies
+
+================================================================================
+PART 6: KERBEROS TESTING
+================================================================================
+
+TESTING TGT REQUEST (Ticket Granting Ticket):
+----------------------------------------------
+
+Command:
+  kinit rahul.sharma@AKSHAY.LOCAL
+
+This requests initial Kerberos authentication
+
+To verify:
+  klist
+
+This shows cached Kerberos tickets
+
+
+TESTING SERVICE TICKETS:
+-----------------------
+
+Command:
+  kvno CIFS/DC01.akshay.local
+
+This requests a service ticket for CIFS (file sharing)
+
+To view:
+  klist -e
+
+This shows detailed ticket information
+
+
+QUERYING DC FOR KERBEROS INFO:
+------------------------------
+
+Command:
+  ldapsearch -x -h 192.168.56.101 -b "DC=akshay,DC=local"
+             "(servicePrincipalName=*)"
+
+Output:
+  All SPNs (Service Principal Names) in the domain
+  These are targets for Kerberoasting attacks
+
+================================================================================
+PART 7: ACTIVE DIRECTORY PROPERTIES & ATTRIBUTES
+================================================================================
+
+KEY AD ATTRIBUTES:
+------------------
+- sAMAccountName: Username for login (e.g., rahul.sharma)
+- userPrincipalName: UPN (e.g., rahul.sharma@akshay.local)
+- displayName: Full name shown in AD
+- mail: Email address
+- memberOf: Groups the user belongs to
+- lastLogon: Last login timestamp
+- userAccountControl: Account flags (enabled/disabled/etc)
+- description: User description/role
+- telephoneNumber: Contact info
+- office: Office location
+
+
+COMMON USER ACCOUNT CONTROL FLAGS:
+----------------------------------
+512: Normal user account
+514: Disabled account
+544: Enabled account with password never expires
+4096: Service account
+8388608: Password not required
+
+
+USEFUL QUERIES:
+---------------
+1. Find all disabled accounts:
+   Get-ADUser -Filter {Enabled -eq $false}
+
+2. Find accounts with password never expires:
+   Get-ADUser -Filter {PasswordNeverExpires -eq $true}
+
+3. Find accounts without password:
+   Get-ADUser -Filter {PasswordNotRequired -eq $true}
+
+4. Find admin accounts:
+   Get-ADGroupMember -Identity "Administrators"
+
+5. Find service accounts:
+   Get-ADUser -Filter {Description -like "*service*"}
+
+================================================================================
+PART 8: OFFENSIVE SECURITY APPLICATIONS
+================================================================================
+
+These techniques form the foundation for advanced attacks:
+
+CURRENT CAPABILITIES:
+--------------------
+✅ User enumeration (identify valid usernames)
+✅ Group membership mapping
+✅ Domain structure discovery
+✅ Privilege level identification
+✅ Service account detection
+
+NEXT-LEVEL ATTACKS (Using this lab):
+-----------------------------------
+
+1. KERBEROASTING
+   - Request TGS tickets for service accounts
+   - Crack password hashes offline
+   - Compromised: Service account credentials
+
+2. ASREPROASTING
+   - Exploit pre-auth disabled accounts
+   - Crack Kerberos tickets
+   - Compromised: User account credentials
+
+3. PRIVILEGE ESCALATION
+   - Find escalation paths using BloodHound
+   - Exploit misconfigurations
+   - Target: Domain Admin access
+
+4. LATERAL MOVEMENT
+   - Use compromised accounts for access
+   - Move through network horizontally
+   - Target: Reach sensitive systems
+
+5. PASS-THE-HASH
+   - Use captured NTLM hashes
+   - No password needed
+   - Target: Move laterally as compromised user
+
+6. GOLDEN TICKET
+   - Forge Kerberos tickets
+   - Permanent domain access
+   - Target: Persistent backdoor
+
+================================================================================
+PART 9: GITHUB PORTFOLIO SETUP
+================================================================================
+
+CREATE REPOSITORY:
+-----------------
+1. GitHub → New Repository
+2. Name: "Active-Directory-Lab"
+3. Description: "AD enumeration and pentesting lab setup"
+4. Public (for portfolio)
+
+REPOSITORY STRUCTURE:
+--------------------
+Active-Directory-Lab/
+├── README.md
+│   └── Lab overview, setup instructions, screenshots
+├── setup-scripts/
+│   ├── 01-install-ad-ds.ps1
+│   ├── 02-promote-dc.ps1
+│   ├── 03-create-ous.ps1
+│   ├── 04-create-users.ps1
+│   ├── 05-create-groups.ps1
+│   └── 06-add-users-to-groups.ps1
+├── enumeration-commands/
+│   ├── PowerShell-Commands.md
+│   ├── LDAP-Queries.md
+│   └── Offensive-Techniques.md
+├── lab-documentation/
+│   ├── Network-Diagram.txt
+│   ├── User-List.txt
+│   ├── Group-List.txt
+│   └── Troubleshooting-Guide.txt
+├── screenshots/
+│   ├── domain-setup.png
+│   ├── users-created.png
+│   ├── groups-created.png
+│   └── enumeration-output.png
+└── notes/
+    ├── Lessons-Learned.md
+    ├── Challenges-Faced.md
+    └── Future-Improvements.md
+
+COMMIT MESSAGE EXAMPLES:
+-----------------------
+✅ "Initial commit: Lab infrastructure setup"
+✅ "Add: Create AD domain akshay.local"
+✅ "Add: Create users and security groups"
+✅ "Add: Enumeration commands and results"
+✅ "Doc: Complete lab documentation"
+
+PORTFOLIO TALKING POINTS:
+------------------------
+1. "Hands-on AD configuration in VirtualBox"
+2. "Deployed 2-server lab with DC and client"
+3. "Created users, OUs, and security groups"
+4. "Performed AD enumeration with PowerShell"
+5. "Troubleshot network connectivity issues"
+6. "Ready for advanced pentesting techniques"
+
+================================================================================
+PART 10: NEXT STEPS & LEARNING PATH
+================================================================================
+
+IMMEDIATE (This Week):
+---------------------
+□ Review all commands learned
+□ Document in GitHub
+□ Create blog post about lab setup
+□ Practice commands multiple times until muscle memory
+
+SHORT-TERM (2-4 Weeks):
+----------------------
+□ Complete eJPT certification
+□ Set up Windows 10 client machine
+□ Practice domain join process
+□ Implement Group Policies
+
+MEDIUM-TERM (1-2 Months):
+------------------------
+□ Learn Kerberoasting attacks
+□ Practice ASREPRoasting
+□ Set up BloodHound
+□ Map attack paths
+□ Practice privilege escalation
+
+LONG-TERM (3-6 Months):
+-----------------------
+□ Complete CRTO certification
+□ Study red team methodology
+□ Practice real-world AD misconfigurations
+□ Build multi-domain environment
+□ Simulate enterprise networks
+
+================================================================================
+PART 11: IMPORTANT NOTES
+================================================================================
+
+⚠️ SECURITY BEST PRACTICES:
+
+1. NEVER commit passwords to Git!
+   - Store credentials in .env files
+   - Add .env to .gitignore
+   - Use environment variables instead
+
+2. KEEP THIS DOCUMENTATION SECURE:
+   - Use private repositories if adding actual credentials
+   - This public version has all passwords removed
+   - Actual passwords stored in secure vault
+
+3. FOR YOUR LAB CREDENTIALS:
+   - Create a separate CREDENTIALS.txt (NOT in Git)
+   - Store locally on your secure machine
+   - Share only with trusted team members
+
+4. DOCUMENTATION VERSIONS:
+   - PUBLIC version: Passwords removed ✅ (This file)
+   - PRIVATE version: With actual passwords (Local only)
+   - LOCAL version: Full technical details (Your machine)
+
+================================================================================
+PART 12: TROUBLESHOOTING QUICK REFERENCE
+================================================================================
+
+ISSUE: Ping fails between VMs
+FIX: Check adapter settings → Ensure both on same adapter (Bridged)
+
+ISSUE: LDAP queries not working
+FIX: Try PowerShell commands directly on DC01
+     Or: Check firewall status (disable if testing)
+
+ISSUE: NTDS service not running
+FIX: Get-Service NTDS → Restart-Service NTDS -Force
+
+ISSUE: Users can't login
+FIX: Verify account enabled: Get-ADUser <username> | Select Enabled
+     Reset password: Set-ADAccountPassword -Identity <username>
+
+ISSUE: Groups not working
+FIX: Verify group exists: Get-ADGroup <groupname>
+     Verify member: Get-ADGroupMember <groupname>
+
+ISSUE: Domain not resolving
+FIX: nslookup akshay.local <dc-ip>
+     Check DNS service: Get-Service DNS
+
+================================================================================
+PART 13: LAB ACHIEVEMENTS SUMMARY
+================================================================================
+
+✅ COMPLETED OBJECTIVES:
+
+1. Infrastructure
+   ✓ Built 2-VM lab (DC + Attacker)
+   ✓ Configured networking
+   ✓ Established connectivity
+
+2. Active Directory
+   ✓ Created domain: akshay.local
+   ✓ Promoted DC01 to domain controller
+   ✓ Configured DNS service
+   ✓ Created 3 OUs (IT, Sales, Managers)
+   ✓ Created 2 test users (Rahul, Priya)
+   ✓ Created 2 security groups (IT-Team, Sales-Team)
+   ✓ Assigned users to groups
+
+3. Enumeration
+   ✓ Listed all AD users
+   ✓ Listed all AD groups
+   ✓ Checked group memberships
+   ✓ Identified domain structure
+   ✓ Verified user account properties
+
+4. Security Configuration
+   ✓ Set strong passwords
+   ✓ Configured user accounts
+   ✓ Enabled/disabled accounts appropriately
+   ✓ Group policy framework ready
+
+5. Documentation
+   ✓ Documented all commands
+   ✓ Explained offensive use cases
+   ✓ Created troubleshooting guide
+   ✓ Prepared GitHub repository
+
+SKILLS GAINED:
+--------------
+→ Windows Server administration
+→ PowerShell scripting
+→ Active Directory management
+→ Network configuration
+→ Pentesting enumeration techniques
+→ Troubleshooting methodology
+→ Documentation and portfolio building
+
+================================================================================
+FINAL NOTES
+================================================================================
+
+This lab represents Week 1-4 of the 12-week learning roadmap:
+- Week 1-2: AD Fundamentals ✅ COMPLETE
+- Week 3-4: AD Enumeration ✅ COMPLETE
+- Week 5-6: Credential Dumping → Next
+- Week 7-8: Privilege Escalation → Next
+- Week 9: Web Application Security → Next
+- Week 10: Report Writing → Next
+- Week 11: CTF Practice → Next
+- Week 12: eJPT Exam Prep → Next
+
+You now have a SOLID FOUNDATION for offensive AD security!
+
+Next: Complete eJPT exam, then move to advanced attacks (Kerberoasting, 
+privilege escalation, lateral movement).
+
+Keep learning, stay consistent, and practice regularly.
+
+Good luck! 💪
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+Version: 1.0 (Lab Complete)
+Document Status: CLEANED FOR PUBLIC GITHUB
+All sensitive information removed
