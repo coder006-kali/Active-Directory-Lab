@@ -14,13 +14,13 @@ A complete Active Directory lab setup for learning penetration testing and offen
 ### Virtual Machines
 | VM | Role | OS | IP Address |
 |---|---|---|---|
-| DC01 | Domain Controller | Windows Server 2022 | 192.168.56.101 |
-| Kali | Attacker/Enumeration | Kali Linux | 192.168.56.102 |
+| DC01 | Domain Controller | Windows Server 2022 | 192.168.X.X |
+| Kali | Attacker/Enumeration | Kali Linux | 192.168.X.X |
 
 ### Technologies Used
 - **Hypervisor:** Oracle VirtualBox 7.x
 - **Network:** Bridged Adapter
-- **Domain:** akshay.local
+- **Domain:** lab.local
 - **Services:** Active Directory, DNS, NTDS
 
 ## 📁 Repository Structure
