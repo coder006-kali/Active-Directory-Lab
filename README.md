@@ -1,3 +1,16 @@
+# ⚠️ SECURITY DISCLAIMER
+
+This repository contains a lab environment for **educational and authorized testing purposes only**.
+
+- This setup should only be used in **isolated lab environments**
+- Do not use on production systems
+- All IP addresses and credentials shown are **examples** - replace with your own
+- Ensure you have **explicit authorization** before testing
+- Comply with all applicable laws and regulations
+
+Use responsibly. Unauthorized testing is illegal.
+
+
 # Active Directory Lab - Penetration Testing
 
 A complete Active Directory lab setup for learning penetration testing and offensive security techniques. This lab demonstrates practical AD enumeration, configuration, and security assessments.
@@ -17,11 +30,15 @@ A complete Active Directory lab setup for learning penetration testing and offen
 | DC01 | Domain Controller | Windows Server 2022 | 192.168.X.X |
 | Kali | Attacker/Enumeration | Kali Linux | 192.168.X.X |
 
+⚠️ **NOTE:** IP addresses are examples. Replace with your actual lab network IPs.
+
 ### Technologies Used
 - **Hypervisor:** Oracle VirtualBox 7.x
 - **Network:** Bridged Adapter
 - **Domain:** lab.local
 - **Services:** Active Directory, DNS, NTDS
+
+- ⚠️ Replace with your actual domain name during setup.
 
 ## 📁 Repository Structure
 
